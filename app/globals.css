@@ -7,3 +7,103 @@
 body {
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
 }
+
+/* Shared copyright line — centered, 8pt serif, muted gray (screen + print). */
+.copyright {
+  text-align: center;
+  font-size: 8pt;
+  font-family: "Times New Roman", Times, serif;
+  color: #6b7280;
+}
+
+/*
+  Print-only record. Hidden on screen; revealed only when printing. The
+  interactive stepped UI (.app-screen) and the page chrome (layout header /
+  footer) are hidden on print, so the printed output is the static record
+  block alone — not the hidden stepped sections.
+*/
+.print-summary {
+  display: none;
+}
+
+@media print {
+  .app-screen,
+  body > header,
+  body > footer {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  .print-summary {
+    display: block;
+    color: #000;
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+
+  .print-summary h1 {
+    font-size: 18pt;
+    margin: 0 0 0.2em;
+    text-align: center;
+  }
+
+  .print-summary .tagline {
+    text-align: center;
+    font-size: 12pt;
+    margin: 0 0 1em;
+  }
+
+  .print-summary h2 {
+    font-size: 14pt;
+    margin: 1.2em 0 0.3em;
+    border-bottom: 1px solid #000;
+    padding-bottom: 0.1em;
+  }
+
+  .print-summary h3 {
+    font-size: 12pt;
+    margin: 0.8em 0 0.2em;
+  }
+
+  .print-summary p,
+  .print-summary li {
+    margin: 0.25em 0;
+  }
+
+  .print-summary dl {
+    margin: 0;
+  }
+
+  .print-summary dt {
+    font-weight: 700;
+    margin-top: 0.5em;
+  }
+
+  .print-summary dd {
+    margin: 0 0 0.2em;
+    white-space: pre-wrap;
+  }
+
+  .print-summary .reasoning,
+  .print-summary .reflection {
+    white-space: pre-wrap;
+  }
+
+  .print-summary .challenge {
+    margin: 0.5em 0;
+    page-break-inside: avoid;
+  }
+
+  /* Spacing only; typography comes from the shared .copyright rule. */
+  .print-summary .print-footer {
+    margin-top: 1.5em;
+  }
+
+  @page {
+    margin: 2cm;
+  }
+}
