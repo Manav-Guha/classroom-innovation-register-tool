@@ -41,6 +41,11 @@ interface Challenge {
 
 type Challenges = Record<DimensionKey, Challenge>;
 
+interface Viability {
+  verdict: "PASS" | "CONDITIONAL" | "FAIL" | "ERROR";
+  reasoning: string;
+}
+
 function getInterpretation(total: number): {
   band: string;
   description: string;
@@ -91,6 +96,11 @@ export default function Home() {
   const [description, setDescription] = useState("");
   const [claimedInnovation, setClaimedInnovation] = useState("");
 
+  // Viability gate
+  const [viability, setViability] = useState<Viability | null>(null);
+  const [viabilityLoading, setViabilityLoading] = useState(false);
+  const [viabilityError, setViabilityError] = useState("");
+
   // Scores
   const [scores, setScores] = useState<Scores>({
     ideasAssumptions: 0,
@@ -118,12 +128,50 @@ export default function Home() {
   const interpretation = getInterpretation(totalScore);
   const finalInterpretation = getInterpretation(finalTotal);
 
+  const scoringUnlocked =
+    viability?.verdict === "PASS" || viability?.verdict === "CONDITIONAL";
+
   function updateScore(key: DimensionKey, value: number) {
     setScores((prev) => ({ ...prev, [key]: value }));
   }
 
   function updateFinalScore(key: DimensionKey, value: number) {
     setFinalScores((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function requestViability() {
+    if (!caseTitle.trim()) {
+      setViabilityError(
+        "Please enter a case title before assessing viability."
+      );
+      return;
+    }
+
+    setViabilityLoading(true);
+    setViabilityError("");
+    setViability(null);
+
+    try {
+      const res = await fetch("/api/viability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ concept: caseTitle, year, description }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Server error (${res.status})`);
+      }
+
+      const data = await res.json();
+      setViability({ verdict: data.verdict, reasoning: data.reasoning });
+    } catch (err) {
+      setViabilityError(
+        err instanceof Error ? err.message : "Failed to assess viability."
+      );
+    } finally {
+      setViabilityLoading(false);
+    }
   }
 
   async function requestChallenge() {
@@ -244,15 +292,108 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Section 2: Register Scoring */}
+      {/* Section 2: Viability Gate */}
+      <section className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+        <h2 className="text-base font-semibold text-gray-800 border-b border-gray-100 pb-2">
+          2. Viability Gate
+        </h2>
+        <p className="text-sm text-gray-500">
+          Before scoring can begin, the case concept must be assessed for
+          viability by its target year. The assessment separates technical
+          possibility from operational feasibility and returns a verdict of
+          Pass, Conditional, or Fail.
+        </p>
+
+        <button
+          onClick={requestViability}
+          disabled={viabilityLoading}
+          className="rounded bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {viabilityLoading ? "Assessing viability..." : "Assess Viability"}
+        </button>
+
+        {viabilityError && (
+          <p className="text-sm text-red-600">{viabilityError}</p>
+        )}
+
+        {viability && (
+          <div
+            className={`rounded border p-4 space-y-3 ${
+              viability.verdict === "PASS"
+                ? "border-green-300 bg-green-50"
+                : viability.verdict === "CONDITIONAL"
+                ? "border-amber-300 bg-amber-50"
+                : viability.verdict === "FAIL"
+                ? "border-red-300 bg-red-50"
+                : "border-gray-300 bg-gray-50"
+            }`}
+          >
+            <span
+              className={`block text-sm font-bold ${
+                viability.verdict === "PASS"
+                  ? "text-green-700"
+                  : viability.verdict === "CONDITIONAL"
+                  ? "text-amber-700"
+                  : viability.verdict === "FAIL"
+                  ? "text-red-700"
+                  : "text-gray-700"
+              }`}
+            >
+              {viability.verdict === "ERROR"
+                ? "Assessment incomplete"
+                : `Verdict: ${viability.verdict}`}
+            </span>
+
+            {viability.verdict === "PASS" && (
+              <p className="text-xs text-green-800">
+                ✓ Scoring unlocked. This concept passed viability assessment —
+                proceed to the register scores below.
+              </p>
+            )}
+            {viability.verdict === "CONDITIONAL" && (
+              <p className="text-xs text-amber-800">
+                ⚠ Scoring unlocked with a caveat. This concept is viable only
+                under a stated condition. Review the reasoning below and
+                interpret your scores with that limitation in mind.
+              </p>
+            )}
+            {viability.verdict === "FAIL" && (
+              <p className="text-xs text-red-800">
+                ⛔ Scoring locked. This concept failed viability assessment.
+                Revise the concept or change the target year, then re-assess.
+              </p>
+            )}
+            {viability.verdict === "ERROR" && (
+              <p className="text-xs text-gray-700">
+                Could not assess viability — the model did not return a clear
+                verdict. Scoring stays locked; please try again.
+              </p>
+            )}
+
+            {viability.reasoning && (
+              <p className="rounded bg-white/70 p-3 text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {viability.reasoning}
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Section 3: Register Scoring */}
       <section className="bg-white border border-gray-200 rounded-lg p-6 space-y-5">
         <h2 className="text-base font-semibold text-gray-800 border-b border-gray-100 pb-2">
-          2. Innovation Register Scores
+          3. Innovation Register Scores
         </h2>
         <p className="text-sm text-gray-500">
           Score each dimension from 0 (none/negligible) to 3
           (transformative/fundamental).
         </p>
+
+        {!scoringUnlocked && (
+          <p className="rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-700">
+            🔒 Scoring is locked until the case passes the viability gate above.
+          </p>
+        )}
 
         {DIMENSIONS.map((dim) => (
           <div key={dim.key} className="space-y-2">
@@ -270,11 +411,12 @@ export default function Home() {
                 <button
                   key={val}
                   onClick={() => updateScore(dim.key, val)}
+                  disabled={!scoringUnlocked}
                   className={`flex-1 rounded border py-1.5 text-sm font-medium transition-colors ${
                     scores[dim.key] === val
                       ? "border-blue-600 bg-blue-600 text-white"
                       : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                  }`}
+                  } ${!scoringUnlocked ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   {val}
                 </button>
@@ -304,10 +446,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Section 3: Dialectical Challenge */}
+      {/* Section 4: Dialectical Challenge */}
       <section className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
         <h2 className="text-base font-semibold text-gray-800 border-b border-gray-100 pb-2">
-          3. Dialectical Challenge
+          4. Dialectical Challenge
         </h2>
         <p className="text-sm text-gray-500">
           Request an AI-generated challenge to your scores. The system will
@@ -373,10 +515,10 @@ export default function Home() {
         )}
       </section>
 
-      {/* Section 4: Student Reflection & Final Scores */}
+      {/* Section 5: Student Reflection & Final Scores */}
       <section className="bg-white border border-gray-200 rounded-lg p-6 space-y-5">
         <h2 className="text-base font-semibold text-gray-800 border-b border-gray-100 pb-2">
-          4. Final Assessment &amp; Reflection
+          5. Final Assessment &amp; Reflection
         </h2>
         <p className="text-sm text-gray-500">
           After reviewing the dialectical challenge, adjust your scores if
